@@ -2,38 +2,26 @@ package com.compiler.lexer.nfa;
 
 /**
  * Represents a Non-deterministic Finite Automaton (NFA) with a start and end state.
- * <p>
- * An NFA is used in lexical analysis to model regular expressions and pattern matching.
- * This class encapsulates the start and end states of the automaton.
  */
-
 public class NFA {
-    /**
-     * The initial (start) state of the NFA.
-     */
+    /** The initial (start) state of the NFA. */
     public final State startState;
 
-    /**
-     * The final (accepting) state of the NFA.
-     */
+    /** The final (accepting) state of the NFA (tests set isFinal=true explicitly). */
     public final State endState;
 
     /**
      * Constructs a new NFA with the given start and end states.
-     * @param start The initial state.
-     * @param end The final (accepting) state.
+     * @param start initial state
+     * @param end final state
      */
     public NFA(State start, State end) {
-        // TODO: Implement constructor
-        throw new UnsupportedOperationException("Not implemented");
+        this.startState = start;
+        this.endState = end;
     }
 
-    /**
-     * Returns the initial (start) state of the NFA.
-     * @return the start state
-     */
+    /** Returns the initial (start) state of the NFA. */
     public State getStartState() {
-    // TODO: Implement getStartState
-    throw new UnsupportedOperationException("Not implemented");
+        return this.startState;
     }
 }

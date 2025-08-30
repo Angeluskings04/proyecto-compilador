@@ -1,78 +1,76 @@
 package com.compiler.lexer.nfa;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Represents a state in a Non-deterministic Finite Automaton (NFA).
  * Each state has a unique identifier, a list of transitions to other states,
  * and a flag indicating whether it is a final (accepting) state.
- *
- * <p>
- * Fields:
- * <ul>
- *   <li>{@code id} - Unique identifier for the state.</li>
- *   <li>{@code transitions} - List of transitions from this state to others.</li>
- *   <li>{@code isFinal} - Indicates if this state is an accepting state.</li>
- * </ul>
- *
- *
- * <p>
- * The {@code nextId} static field is used to assign unique IDs to each state.
- * </p>
  */
 public class State {
-    private static int nextId = 0;
-    /**
-     * Unique identifier for this state.
-     */
+    /** Unique identifier for the state. */
     public final int id;
 
-    /**
-     * List of transitions from this state to other states.
-     */
-    public List<Transition> transitions;
+    /** List of transitions from this state to other states. */
+    private final List<Transition> transitions;
 
-    /**
-     * Indicates if this state is a final (accepting) state.
-     */
+    /** Indicates whether this state is an accepting (final) state. */
     public boolean isFinal;
 
     /**
-     * Constructs a new state with a unique identifier and no transitions.
-     * The state is not final by default.
+     * Constructs a state with the given id and final flag.
+     * @param id unique id
+     * @param isFinal whether this is an accepting state
      */
-    public State() {
-    // TODO: Implement constructor
-    throw new UnsupportedOperationException("Not implemented");
+    public State(int id, boolean isFinal) {
+        this.id = id;
+        this.isFinal = isFinal;
+        this.transitions = new ArrayList<>();
     }
 
     /**
-     * Checks if this state is a final (accepting) state.
-     * @return true if this state is final, false otherwise
+     * Adds a transition to this state's transition list.
+     * @param transition transition to add
      */
-    public boolean isFinal() {
-    // TODO: Implement isFinal
-    throw new UnsupportedOperationException("Not implemented");
+    public void addTransition(Transition transition) {
+        this.transitions.add(transition);
+    }
+
+    /**
+     * Returns all transitions from this state.
+     * @return list of transitions
+     */
+    public List<Transition> getTransitions() {
+        return this.transitions;
     }
 
     /**
      * Returns the states reachable from this state via epsilon transitions (symbol == null).
-     * @return a list of states reachable by epsilon transitions
+     * @return list of states reachable by epsilon transitions
      */
     public List<State> getEpsilonTransitions() {
-    // TODO: Implement getEpsilonTransitions
-    // Pseudocode: Iterate over transitions, if symbol is null, add to result list
-    throw new UnsupportedOperationException("Not implemented");
+        List<State> result = new ArrayList<>();
+        for (Transition t : transitions) {
+            if (t.symbol == null) {
+                result.add(t.toState);
+            }
+        }
+        return result;
     }
 
     /**
      * Returns the states reachable from this state via a transition with the given symbol.
      * @param symbol the symbol for the transition
-     * @return a list of states reachable by the given symbol
+     * @return list of states reachable by the given symbol
      */
     public List<State> getTransitions(char symbol) {
-    // TODO: Implement getTransitions
-    // Pseudocode: Iterate over transitions, if symbol matches, add to result list
-    throw new UnsupportedOperationException("Not implemented");
+        List<State> result = new ArrayList<>();
+        for (Transition t : transitions) {
+            if (t.symbol != null && t.symbol == symbol) {
+                result.add(t.toState);
+            }
+        }
+        return result;
     }
 }
