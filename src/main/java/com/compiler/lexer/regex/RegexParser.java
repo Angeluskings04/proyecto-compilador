@@ -67,11 +67,19 @@ public class RegexParser {
     }
 
     private NFA createNfaForCharacter(char c) {
-        State s = newState(false);
-        State a = newState(false);
+    State s = newState(false);
+    State a = newState(false);
+
+    if (c == 'ε') {
+        // Épsilon real: transición con símbolo null
+        s.addTransition(new Transition(null, a));
+    } else {
+        // Símbolo normal
         s.addTransition(new Transition(c, a));
-        return new NFA(s, a);
     }
+    return new NFA(s, a);
+}
+
 
     private void handleConcatenation(Stack<NFA> stack) {
         NFA f2 = stack.pop();
