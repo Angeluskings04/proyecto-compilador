@@ -4,118 +4,184 @@ import java.util.Stack;
 
 import com.compiler.lexer.nfa.NFA;
 import com.compiler.lexer.nfa.State;
-import com.compiler.lexer.nfa.Transition;
 
 /**
- * Builds an NFA from an infix regular expression using Thompson's construction.
+ * RegexParser
+ * -----------
+ * This class provides functionality to convert infix regular expressions into nondeterministic finite automata (NFA)
+ * using Thompson's construction algorithm. It supports standard regex operators: concatenation (·), union (|),
+ * Kleene star (*), optional (?), and plus (+). The conversion process uses the Shunting Yard algorithm to transform
+ * infix regex into postfix notation, then builds the corresponding NFA.
+ *
+ * Features:
+ * - Parses infix regular expressions and converts them to NFA.
+ * - Supports regex operators: concatenation, union, Kleene star, optional, plus.
+ * - Implements Thompson's construction rules for NFA generation.
+ *
+ * Example usage:
+ * <pre>
+ *     RegexParser parser = new RegexParser();
+ *     NFA nfa = parser.parse("a(b|c)*");
+ * </pre>
+ */
+/**
+ * Parses regular expressions and constructs NFAs using Thompson's construction.
  */
 public class RegexParser {
+    /**
+     * Default constructor for RegexParser.
+     */
+    public RegexParser() {}
 
-    private int nextId = 0;
-    private State newState(boolean isFinal) {
-        return new State(nextId++, isFinal);
+    /**
+     * Converts an infix regular expression to an NFA.
+     *
+     * @param infixRegex The regular expression in infix notation.
+     * @return The constructed NFA.
+     */
+    public NFA parse(String infixRegex) {
+        // Step 1: Convert to postfix using Shunting Yard
+        String postfixRegex = ShuntingYard.toPostfix(infixRegex);
+        // Step 2: Build the NFA from the postfix expression
+        return buildNfaFromPostfix(postfixRegex);
     }
 
-    public NFA parse(String infixRegex) {
-        String withConcat = ShuntingYard.insertConcatenationOperator(infixRegex);
-        String postfix = ShuntingYard.toPostfix(withConcat);
-        Stack<NFA> stack = new Stack<>();
-        for (int i = 0; i < postfix.length(); i++) {
-            char c = postfix.charAt(i);
+    /**
+     * Builds an NFA from a postfix regular expression.
+     *
+     * @param postfixRegex The regular expression in postfix notation.
+     * @return The constructed NFA.
+     */
+    private NFA buildNfaFromPostfix(String postfixRegex) {
+        Stack<NFA> nfaStack = new Stack<>();
+
+        for (char c : postfixRegex.toCharArray()) {
             if (isOperand(c)) {
-                stack.push(createNfaForCharacter(c));
+                NFA nfa = createNfaForCharacter(c);
+                nfaStack.push(nfa);
             } else if (c == '·') {
-                handleConcatenation(stack);
+                handleConcatenation(nfaStack);
             } else if (c == '|') {
-                handleUnion(stack);
+                handleUnion(nfaStack);
             } else if (c == '*') {
-                handleKleeneStar(stack);
-            } else if (c == '+') {
-                handlePlus(stack);
+                handleKleeneStar(nfaStack);
             } else if (c == '?') {
-                handleOptional(stack);
-            } else {
-                throw new IllegalArgumentException("Unexpected token in postfix: " + c);
+                handleOptional(nfaStack);
+            } else if (c == '+') {
+                handlePlus(nfaStack);
             }
         }
-        if (stack.size() != 1) throw new IllegalStateException("Invalid postfix: stack size = " + stack.size());
-        return stack.pop();
+
+        NFA result = nfaStack.pop();
+        result.endState.isFinal = true;
+        return result;
     }
 
+    /**
+     * Handles the '?' operator (zero or one occurrence).
+     * Pops an NFA from the stack and creates a new NFA that accepts zero or one occurrence.
+     * @param stack The NFA stack.
+     */
     private void handleOptional(Stack<NFA> stack) {
-        NFA f = stack.pop();
-        State s = newState(false);
-        State a = newState(false);
-        // ε to fragment and ε to accept
-        s.addTransition(new Transition(null, f.startState));
-        s.addTransition(new Transition(null, a));
-        // fragment end ε to accept
-        f.endState.addTransition(new Transition(null, a));
-        stack.push(new NFA(s, a));
+        NFA nfa = stack.pop();
+        State start = new State();
+        State end = new State();
+        start.transitions.add(new com.compiler.lexer.nfa.Transition(null, nfa.startState));
+        start.transitions.add(new com.compiler.lexer.nfa.Transition(null, end));
+        nfa.endState.isFinal = false;
+        nfa.endState.transitions.add(new com.compiler.lexer.nfa.Transition(null, end));
+        end.isFinal = true;
+        stack.push(new NFA(start, end));
     }
 
+    /**
+     * Handles the '+' operator (one or more occurrences).
+     * Pops an NFA from the stack and creates a new NFA that accepts one or more occurrences.
+     * @param stack The NFA stack.
+     */
     private void handlePlus(Stack<NFA> stack) {
-        NFA f = stack.pop();
-        State s = newState(false);
-        State a = newState(false);
-        // must take fragment once
-        s.addTransition(new Transition(null, f.startState));
-        // loop from fragment end back to start, and to accept
-        f.endState.addTransition(new Transition(null, f.startState));
-        f.endState.addTransition(new Transition(null, a));
-        stack.push(new NFA(s, a));
+        NFA nfa = stack.pop();
+        State start = new State();
+        State end = new State();
+        start.transitions.add(new com.compiler.lexer.nfa.Transition(null, nfa.startState));
+        nfa.endState.isFinal = false;
+        nfa.endState.transitions.add(new com.compiler.lexer.nfa.Transition(null, nfa.startState));
+        nfa.endState.transitions.add(new com.compiler.lexer.nfa.Transition(null, end));
+        end.isFinal = true;
+        stack.push(new NFA(start, end));
     }
-
+    
+    /**
+     * Creates an NFA for a single character.
+     * @param c The character to create an NFA for.
+     * @return The constructed NFA.
+     */
     private NFA createNfaForCharacter(char c) {
-    State s = newState(false);
-    State a = newState(false);
-
-    if (c == 'ε') {
-        // Épsilon real: transición con símbolo null
-        s.addTransition(new Transition(null, a));
-    } else {
-        // Símbolo normal
-        s.addTransition(new Transition(c, a));
+        State start = new State();
+        State end = new State();
+        start.transitions.add(new com.compiler.lexer.nfa.Transition(c, end));
+        end.isFinal = true;
+        return new NFA(start, end);
     }
-    return new NFA(s, a);
-}
 
-
+    /**
+     * Handles the concatenation operator (·).
+     * Pops two NFAs from the stack and connects them in sequence.
+     * @param stack The NFA stack.
+     */
     private void handleConcatenation(Stack<NFA> stack) {
-        NFA f2 = stack.pop();
-        NFA f1 = stack.pop();
-        // connect f1.end -> ε -> f2.start
-        f1.endState.addTransition(new Transition(null, f2.startState));
-        stack.push(new NFA(f1.startState, f2.endState));
+        NFA nfa2 = stack.pop();
+        NFA nfa1 = stack.pop();
+        nfa1.endState.isFinal = false;
+        nfa1.endState.transitions.add(new com.compiler.lexer.nfa.Transition(null, nfa2.startState));
+        nfa2.endState.isFinal = true;
+        stack.push(new NFA(nfa1.startState, nfa2.endState));
     }
 
+    /**
+     * Handles the union operator (|).
+     * Pops two NFAs from the stack and creates a new NFA that accepts either.
+     * @param stack The NFA stack.
+     */
     private void handleUnion(Stack<NFA> stack) {
-        NFA f2 = stack.pop();
-        NFA f1 = stack.pop();
-        State s = newState(false);
-        State a = newState(false);
-        s.addTransition(new Transition(null, f1.startState));
-        s.addTransition(new Transition(null, f2.startState));
-        f1.endState.addTransition(new Transition(null, a));
-        f2.endState.addTransition(new Transition(null, a));
-        stack.push(new NFA(s, a));
+        NFA nfa2 = stack.pop();
+        NFA nfa1 = stack.pop();
+        State start = new State();
+        State end = new State();
+        start.transitions.add(new com.compiler.lexer.nfa.Transition(null, nfa1.startState));
+        start.transitions.add(new com.compiler.lexer.nfa.Transition(null, nfa2.startState));
+        nfa1.endState.isFinal = false;
+        nfa2.endState.isFinal = false;
+        nfa1.endState.transitions.add(new com.compiler.lexer.nfa.Transition(null, end));
+        nfa2.endState.transitions.add(new com.compiler.lexer.nfa.Transition(null, end));
+        end.isFinal = true;
+        stack.push(new NFA(start, end));
     }
 
+    /**
+     * Handles the Kleene star operator (*).
+     * Pops an NFA from the stack and creates a new NFA that accepts zero or more repetitions.
+     * @param stack The NFA stack.
+     */
     private void handleKleeneStar(Stack<NFA> stack) {
-        NFA f = stack.pop();
-        State s = newState(false);
-        State a = newState(false);
-        // enter or skip
-        s.addTransition(new Transition(null, f.startState));
-        s.addTransition(new Transition(null, a));
-        // loop and exit
-        f.endState.addTransition(new Transition(null, f.startState));
-        f.endState.addTransition(new Transition(null, a));
-        stack.push(new NFA(s, a));
+        NFA nfa = stack.pop();
+        State start = new State();
+        State end = new State();
+        start.transitions.add(new com.compiler.lexer.nfa.Transition(null, nfa.startState));
+        start.transitions.add(new com.compiler.lexer.nfa.Transition(null, end));
+        nfa.endState.isFinal = false;
+        nfa.endState.transitions.add(new com.compiler.lexer.nfa.Transition(null, nfa.startState));
+        nfa.endState.transitions.add(new com.compiler.lexer.nfa.Transition(null, end));
+        end.isFinal = true;
+        stack.push(new NFA(start, end));
     }
 
-    /** Returns true if c is an operand (letter/digit/_/epsilon). */
+    /**
+     * Checks if a character is an operand (not an operator).
+     * @param c The character to check.
+     * @return True if the character is an operand, false if it is an operator.
+     */
     private boolean isOperand(char c) {
-        return Character.isLetterOrDigit(c) || c == '_' || c == 'ε';
+        return c != '·' && c != '|' && c != '*' && c != '?' && c != '+';
     }
 }

@@ -1,13 +1,13 @@
 package com.compiler.lexer;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Deque;
-import java.util.LinkedHashSet;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Queue;
 import java.util.Set;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.Stack;
 
 import com.compiler.lexer.dfa.DFA;
 import com.compiler.lexer.dfa.DfaState;
@@ -17,111 +17,125 @@ import com.compiler.lexer.nfa.State;
 /**
  * NfaToDfaConverter
  * -----------------
- * Construye un DFA a partir de un NFA usando la construcción por subconjuntos.
- * Cada estado del DFA representa un conjunto de estados del NFA.
+ * This class provides a static method to convert a Non-deterministic Finite Automaton (NFA)
+ * into a Deterministic Finite Automaton (DFA) using the standard subset construction algorithm.
+ */
+/**
+ * Utility class for converting NFAs to DFAs using the subset construction algorithm.
  */
 public class NfaToDfaConverter {
+	/**
+	 * Default constructor for NfaToDfaConverter.
+	 */
+	public NfaToDfaConverter() {}
 
-    public NfaToDfaConverter() {}
+	/**
+	 * Converts an NFA to a DFA using the subset construction algorithm.
+	 * Each DFA state represents a set of NFA states. Final states are marked if any NFA state in the set is final.
+	 *
+	 * @param nfa The input NFA
+	 * @param alphabet The input alphabet (set of characters)
+	 * @return The resulting DFA
+	 */
+	public static DFA convertNfaToDfa(NFA nfa, Set<Character> alphabet) {
+		List<DfaState> dfaStates = new ArrayList<>();
+		Queue<DfaState> unmarkedStates = new LinkedList<>();
 
-    /**
-     * Convierte un NFA a DFA usando subset construction.
-     * @param nfa NFA de entrada
-     * @param alphabet Alfabeto (símbolos consumibles; sin epsilon)
-     * @return DFA resultante
-     */
-    public static DFA convertNfaToDfa(NFA nfa, Set<Character> alphabet) {
-        if (nfa == null || nfa.getStartState() == null) {
-            throw new IllegalArgumentException("NFA inválido: startState null");
-        }
+		// 1. Initial DFA state: epsilon-closure of the NFA start state
+		Set<State> startNfaStates = epsilonClosure(Collections.singleton(nfa.getStartState()));
+		DfaState startDfaState = new DfaState(startNfaStates);
+		dfaStates.add(startDfaState);
+		unmarkedStates.add(startDfaState);
 
-        // 1) Estado inicial del DFA = ε-closure({startNFA})
-        Set<State> startSet = new LinkedHashSet<>();
-        startSet.add(nfa.getStartState());
-        Set<State> startClosure = epsilonClosure(startSet);
+		// 2. Process states
+		while (!unmarkedStates.isEmpty()) {
+			DfaState currentDfaState = unmarkedStates.poll();
+			for (Character c : alphabet) {
+				Set<State> nextNfaStates = move(currentDfaState.nfaStates, c);
+				Set<State> targetNfaStates = epsilonClosure(nextNfaStates);
+				if (targetNfaStates.isEmpty()) continue;
+				DfaState targetDfaState = findDfaState(dfaStates, targetNfaStates);
+				if (targetDfaState == null) {
+					targetDfaState = new DfaState(targetNfaStates);
+					dfaStates.add(targetDfaState);
+					unmarkedStates.add(targetDfaState);
+				}
+				currentDfaState.addTransition(c, targetDfaState);
+			}
+		}
 
-        DfaState dfaStart = new DfaState(startClosure);
-        // Final si hay algún NFA final O si contiene explícitamente el endState del NFA
-        dfaStart.setFinal(containsFinal(startClosure) || startClosure.contains(nfa.endState));
+		// 3. Mark final states in the DFA and assign tokenTypeName
+		for (DfaState dfaState : dfaStates) {
+			String foundTokenTypeName = null;
+			int bestPriority = Integer.MAX_VALUE;
+			for (State nfaState : dfaState.nfaStates) {
+				if (nfaState.isFinal()) {
+					dfaState.isFinal = true;
+							if (nfaState.tokenTypeName != null && nfaState.priority <= bestPriority) {
+								bestPriority = nfaState.priority;
+								foundTokenTypeName = nfaState.tokenTypeName;
+							}
+				}
+			}
+			dfaState.tokenTypeName = foundTokenTypeName;
+		}
 
-        List<DfaState> allStates = new ArrayList<>();
-        allStates.add(dfaStart);
+		// 4. Return the constructed DFA
+		return new DFA(startDfaState, dfaStates);
+	}
 
-        // Índice rápido: conjunto NFA -> DfaState (clave por contenido)
-        Map<Set<State>, DfaState> seen = new HashMap<>();
-        seen.put(new LinkedHashSet<>(startClosure), dfaStart);
+	/**
+	 * Computes the epsilon-closure of a set of NFA states.
+	 * The epsilon-closure is the set of states reachable by epsilon (null) transitions.
+	 *
+	 * @param states The set of NFA states.
+	 * @return The epsilon-closure of the input states.
+	 */
+	private static Set<State> epsilonClosure(Set<State> states) {
+		Set<State> closure = new HashSet<>(states);
+		Stack<State> stack = new Stack<>();
+		stack.addAll(states);
+		while (!stack.isEmpty()) {
+			State state = stack.pop();
+			for (State next : state.getEpsilonTransitions()) {
+				if (closure.add(next)) {
+					stack.push(next);
+				}
+			}
+		}
+		return closure;
+	}
 
-        // 2) BFS sobre los estados del DFA
-        Deque<DfaState> work = new ArrayDeque<>();
-        work.add(dfaStart);
+	/**
+	 * Returns the set of states reachable from a set of NFA states by a given symbol.
+	 *
+	 * @param states The set of NFA states.
+	 * @param symbol The input symbol.
+	 * @return The set of reachable states.
+	 */
+	private static Set<State> move(Set<State> states, char symbol) {
+		Set<State> result = new HashSet<>();
+		for (State state : states) {
+			for (State next : state.getTransitions(symbol)) {
+				result.add(next);
+			}
+		}
+		return result;
+	}
 
-        while (!work.isEmpty()) {
-            DfaState current = work.poll();
-            Set<State> T = current.getName(); // conjunto de NFA que representa
-
-            for (char a : alphabet) {
-                // move(T, a) y luego ε-closure
-                Set<State> moveSet = move(T, a);
-                if (moveSet.isEmpty()) continue;
-
-                Set<State> U = epsilonClosure(moveSet);
-                if (U.isEmpty()) continue;
-
-                // Reusar o crear estado DFA para U
-                Set<State> key = new LinkedHashSet<>(U);
-                DfaState target = seen.get(key);
-                if (target == null) {
-                    target = new DfaState(U);
-                    // Final si algún NFA es final O si contiene el endState del NFA
-                    target.setFinal(containsFinal(U) || U.contains(nfa.endState));
-
-                    seen.put(key, target);
-                    allStates.add(target);
-                    work.add(target);
-                }
-
-                // Añadir transición determinista
-                current.addTransition(a, target);
-            }
-        }
-
-        return new DFA(dfaStart, allStates);
-    }
-
-    /** ε-closure de un conjunto de estados NFA. */
-    private static Set<State> epsilonClosure(Set<State> states) {
-        Deque<State> stack = new ArrayDeque<>(states);
-        Set<State> closure = new LinkedHashSet<>(states);
-        while (!stack.isEmpty()) {
-            State s = stack.pop();
-            for (State e : s.getEpsilonTransitions()) {
-                if (closure.add(e)) {
-                    stack.push(e);
-                }
-            }
-        }
-        return closure;
-    }
-
-    /** move(S, a): estados alcanzables desde S consumiendo el símbolo a (sin ε). */
-    private static Set<State> move(Set<State> states, char symbol) {
-        Set<State> out = new LinkedHashSet<>();
-        for (State s : states) {
-            for (State dst : s.getTransitions(symbol)) {
-                out.add(dst);
-            }
-        }
-        return out;
-    }
-
-    /** true si algún estado del NFA en el conjunto es final. */
-    private static boolean containsFinal(Set<State> nfaSet) {
-        for (State s : nfaSet) {
-            if (s.isFinal) return true;
-        }
-        return false;
-    }
+	/**
+	 * Finds an existing DFA state representing a given set of NFA states.
+	 *
+	 * @param dfaStates The list of DFA states.
+	 * @param targetNfaStates The set of NFA states to search for.
+	 * @return The matching DFA state, or null if not found.
+	 */
+	private static DfaState findDfaState(List<DfaState> dfaStates, Set<State> targetNfaStates) {
+		for (DfaState dfaState : dfaStates) {
+			if (dfaState.nfaStates.equals(targetNfaStates)) {
+				return dfaState;
+			}
+		}
+		return null;
+	}
 }
-
-
-

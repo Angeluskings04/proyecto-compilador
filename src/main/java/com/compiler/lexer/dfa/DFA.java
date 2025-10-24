@@ -1,7 +1,5 @@
 package com.compiler.lexer.dfa;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -14,12 +12,13 @@ public class DFA {
     /**
      * The starting state of the DFA.
      */
-    private final DfaState startState;
+    public final DfaState startState;
 
     /**
      * A list of all states in the DFA.
      */
-    private final List<DfaState> allStates;
+    public final List<DfaState> allStates;
+    // Optionally, a Set<Character> for the alphabet could be added.
 
     /**
      * Constructs a new DFA.
@@ -28,29 +27,6 @@ public class DFA {
      */
     public DFA(DfaState startState, List<DfaState> allStates) {
         this.startState = startState;
-        // copiamos para evitar modificar desde fuera
-        this.allStates = new ArrayList<>(allStates);
-    }
-
-    /** Returns the start state of the DFA. */
-    public DfaState getStartState() {
-        return startState;
-    }
-
-    /** Returns an unmodifiable list of all DFA states. */
-    public List<DfaState> getAllStates() {
-        return Collections.unmodifiableList(allStates);
-    }
-
-    /** Adds a state to the DFA (útil al construir por conversión NFA→DFA). */
-    public void addState(DfaState state) {
-        if (!allStates.contains(state)) {
-            allStates.add(state);
-        }
-    }
-
-    @Override
-    public String toString() {
-        return "DFA(start=" + startState + ", states=" + allStates.size() + ")";
+        this.allStates = allStates;
     }
 }
